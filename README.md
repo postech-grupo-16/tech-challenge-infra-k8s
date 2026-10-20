@@ -19,6 +19,7 @@ Faz parte do conjunto de 4 repositórios da Fase 3 do Tech Challenge (16SOAT):
 - Repositório ECR (`tech-challenge-backend`) com lifecycle policy (mantém as 5 imagens mais recentes)
 - Add-ons de cluster: EBS CSI driver, metrics-server, StorageClass `gp3` (manifests em [`manifests/`](manifests/))
 - Bucket S3 próprio para o state remoto (bootstrap descrito em [`backend.tf`](backend.tf))
+- Parâmetros no SSM Parameter Store (`/tech-challenge/vpc_id`, `/tech-challenge/vpc_cidr`, `/tech-challenge/subnet_ids`, `/tech-challenge/eks_cluster_name`) — é assim que os repositórios [tech-challenge-infra-db](https://github.com/Gabrielfsg/tech-challenge-infra-db) e [tech-challenge-auth-lambda](https://github.com/Gabrielfsg/tech-challenge-auth-lambda) leem a rede desta VPC sem compartilhar o Terraform state (ver [`ssm-outputs.tf`](ssm-outputs.tf))
 
 ## Pré-requisitos
 

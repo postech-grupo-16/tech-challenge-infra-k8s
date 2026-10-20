@@ -103,9 +103,6 @@ jobs:
       - name: Mostrar Outputs (cluster, ECR, etc.)
         run: terraform output
 
-      # TODO (Fase 4): publicar vpc_id/subnet_id/eks_cluster_name no SSM Parameter
-      # Store (/tech-challenge/...) para os repos infra-db e auth-lambda lerem.
-
   # JOB 3: DESTROY — só via dispatch manual, escolhendo action=destroy; só roda se o Plan tiver sucesso
   destroy:
     name: Terraform Destroy
