@@ -18,7 +18,6 @@ Faz parte do conjunto de 4 repositórios da Fase 3 do Tech Challenge (16SOAT):
 - Node group gerenciado (`t3.medium`, 2-3 nós)
 - Repositório ECR (`tech-challenge-backend`) com lifecycle policy (mantém as 5 imagens mais recentes)
 - Add-ons de cluster: EBS CSI driver, metrics-server, StorageClass `gp3` (manifests em [`manifests/`](manifests/))
-- Bucket S3 próprio para o state remoto (bootstrap descrito em [`backend.tf`](backend.tf))
 - Parâmetros no SSM Parameter Store (`/tech-challenge/vpc_id`, `/tech-challenge/vpc_cidr`, `/tech-challenge/subnet_ids`, `/tech-challenge/eks_cluster_name`) — é assim que os repositórios [tech-challenge-infra-db](https://github.com/Gabrielfsg/tech-challenge-infra-db) e [tech-challenge-auth-lambda](https://github.com/Gabrielfsg/tech-challenge-auth-lambda) leem a rede desta VPC sem compartilhar o Terraform state (ver [`ssm-outputs.tf`](ssm-outputs.tf))
 
 ## Pré-requisitos
@@ -27,18 +26,23 @@ Faz parte do conjunto de 4 repositórios da Fase 3 do Tech Challenge (16SOAT):
 - AWS CLI configurado (AWS Academy: credenciais temporárias do Learner Lab)
 - Este projeto roda sob a role `LabRole` do AWS Academy — não cria roles/policies IAM próprias.
 
-## Primeira execução (bootstrap do state remoto)
+## Primeira execução (bootstrap do bucket de state)
 
-O bucket S3 do state é criado pelo próprio Terraform deste repositório (ver comentário em [`backend.tf`](backend.tf)). Antes do primeiro apply, troque `state_bucket_name` em [`vars.tf`](vars.tf) (e o `bucket` em `backend.tf`) por um nome de bucket S3 ainda não usado globalmente — nomes de bucket S3 são únicos em toda a AWS.
+O bucket S3 do state **não é gerenciado pelo Terraform** — é criado uma vez via AWS CLI, fora do Terraform. Isso é proposital: o provider AWS sempre tenta ler a configuração de "object lock" do bucket como parte do ciclo de vida do recurso `aws_s3_bucket`, e o AWS Academy bloqueia essa chamada (`GetBucketObjectLockConfiguration`) via Service Control Policy, sem exceção possível — isso quebraria o `apply` mesmo quando a criação do bucket em si funciona. Ver detalhes em [`backend.tf`](backend.tf).
+
+Antes do primeiro `terraform init`, troque `tech-challenge-infra-k8s-gabrielfsg` no comando abaixo (e em `backend.tf`) por um nome de bucket S3 ainda não usado globalmente — nomes de bucket S3 são únicos em toda a AWS:
 
 ```bash
-# 1. Comente o bloco backend "s3" {...} em backend.tf
-terraform init
-terraform apply   # cria VPC/EKS/ECR + o próprio bucket de state
-
-# 2. Descomente o bloco backend "s3" {...} em backend.tf
-terraform init -migrate-state
+aws s3api create-bucket --bucket tech-challenge-infra-k8s-gabrielfsg --region us-east-1
+aws s3api put-bucket-versioning --bucket tech-challenge-infra-k8s-gabrielfsg \
+  --versioning-configuration Status=Enabled
+aws s3api put-bucket-encryption --bucket tech-challenge-infra-k8s-gabrielfsg \
+  --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+aws s3api put-public-access-block --bucket tech-challenge-infra-k8s-gabrielfsg \
+  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 ```
+
+Depois disso, `terraform init`/`apply` normais funcionam direto.
 
 ## Uso normal
 

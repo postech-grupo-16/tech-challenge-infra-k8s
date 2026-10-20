@@ -14,4 +14,11 @@ resource "aws_eks_access_policy_association" "ae_association_voclabs" {
   access_scope {
     type = "cluster"
   }
+
+  # Sem isso, o Terraform nao sabe que esta associacao depende da access
+  # entry acima (as duas referenciam a mesma ARN como string crua, nao via
+  # atributo do recurso, entao nao ha dependencia implicita) - podem rodar
+  # em paralelo ou fora de ordem, causando 404 (ResourceNotFoundException)
+  # quando a associacao tenta rodar antes da access entry existir de fato.
+  depends_on = [aws_eks_access_entry.access_entry_voclabs]
 }

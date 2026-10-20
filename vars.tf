@@ -29,9 +29,3 @@ variable "instance_types" {
   type        = list(string)
   default     = ["t3.medium"]
 }
-
-variable "state_bucket_name" {
-  description = "Nome do bucket S3 do state remoto (precisa bater com backend.tf). Nomes de bucket S3 sao globais - troque antes do primeiro apply se este ja existir em outra conta."
-  type        = string
-  default     = "tech-challenge-infra-k8s-gabrielfsg"
-}
