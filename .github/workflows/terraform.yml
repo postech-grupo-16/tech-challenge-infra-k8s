@@ -1,0 +1,142 @@
+name: Terraform Infra (VPC/EKS/ECR)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Ação do Terraform"
+        required: true
+        type: choice
+        default: "plan"
+        options:
+          - plan
+          - apply
+          - destroy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-infra-k8s
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: "1.9.8"
+  AWS_REGION: us-east-1
+
+jobs:
+  # JOB 1: PLAN — roda em todo push na main, ou via dispatch manual
+  plan:
+    name: Terraform Plan
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'plan' || inputs.action == 'apply' || inputs.action == 'destroy'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -input=false -no-color -out=tfplan
+        continue-on-error: true
+
+      - name: Falhar se o Plan deu erro
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+  # JOB 2: APPLY — via push na main, ou dispatch manual (action=apply); só roda se o Plan tiver sucesso
+  apply:
+    name: Terraform Apply
+    needs: plan
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Apply
+        run: terraform apply -input=false -auto-approve
+
+      - name: Mostrar Outputs (cluster, ECR, etc.)
+        run: terraform output
+
+      # TODO (Fase 4): publicar vpc_id/subnet_id/eks_cluster_name no SSM Parameter
+      # Store (/tech-challenge/...) para os repos infra-db e auth-lambda lerem.
+
+  # JOB 3: DESTROY — só via dispatch manual, escolhendo action=destroy; só roda se o Plan tiver sucesso
+  destroy:
+    name: Terraform Destroy
+    needs: plan
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Destroy
+        # Preserva o bucket S3 do state remoto (protegido por prevent_destroy
+        # em backend/main.tf); destroi só o restante da infra.
+        run: |
+          TARGETS=$(terraform state list | grep -v '^module\.state_bucket' | sed 's/^/-target=/' | tr '\n' ' ')
+          terraform destroy -input=false -auto-approve $TARGETS
