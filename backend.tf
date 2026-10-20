@@ -1,17 +1,24 @@
-# O bucket abaixo (tech-challenge-soat16-grupo15) e criado pelo modulo
-# ./backend (ver state-bucket.tf) - ou seja, este state raiz gerencia o
-# proprio bucket que o guarda. Isso exige um bootstrap manual na primeira
-# vez, porque o backend "s3" so inicializa se o bucket ja existir:
+# O bucket abaixo NAO e gerenciado pelo Terraform (nao existe mais um
+# recurso aws_s3_bucket para ele neste projeto). Isso e proposital: o
+# provider AWS sempre tenta ler a configuracao de "object lock" do bucket
+# como parte do ciclo de vida do recurso aws_s3_bucket, e o AWS Academy
+# bloqueia essa chamada (GetBucketObjectLockConfiguration) via Service
+# Control Policy, sem excecao possivel - isso quebra o apply mesmo quando a
+# criacao do bucket em si funciona.
 #
-#   1. Comente o bloco `backend "s3" { ... }` abaixo.
-#   2. terraform init && terraform apply
-#      (roda com state local; cria o bucket, entre outros recursos)
-#   3. Descomente o bloco `backend "s3" { ... }` de novo.
-#   4. terraform init -migrate-state
-#      (copia o state local, que ja inclui o bucket, para dentro dele mesmo)
+# Bootstrap (uma vez só, via AWS CLI, antes do primeiro `terraform init`):
 #
-# Depois disso, `terraform init`/`apply` normais (sem -migrate-state) fazem
-# tudo, inclusive futuras mudancas no proprio bucket.
+#   aws s3api create-bucket --bucket <nome-do-bucket> --region us-east-1
+#   aws s3api put-bucket-versioning --bucket <nome-do-bucket> \
+#     --versioning-configuration Status=Enabled
+#   aws s3api put-bucket-encryption --bucket <nome-do-bucket> \
+#     --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+#   aws s3api put-public-access-block --bucket <nome-do-bucket> \
+#     --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+#
+# Depois disso, `terraform init`/`apply` normais funcionam direto - sem a
+# dança de comentar/descomentar backend que versoes anteriores deste
+# arquivo exigiam.
 terraform {
   backend "s3" {
     bucket = "tech-challenge-infra-k8s-gabrielfsg"
