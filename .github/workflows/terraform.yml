@@ -1,8 +1,15 @@
 name: Terraform Infra (VPC/EKS/ECR)
 
+# Dois ambientes, escolhidos pela branch:
+#   main    -> production (environments/production.*)
+#   homolog -> homolog    (environments/homolog.*)
+# Em PR so roda o plan (contra o ambiente da branch de destino); o apply
+# acontece no push (merge do PR) ou via dispatch manual.
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "homolog" ]
+  pull_request:
+    branches: [ "main", "homolog" ]
   workflow_dispatch:
     inputs:
       action:
@@ -19,18 +26,19 @@ permissions:
   contents: read
 
 concurrency:
-  group: terraform-infra-k8s
+  group: terraform-infra-k8s-${{ github.base_ref || github.ref_name }}
   cancel-in-progress: false
 
 env:
   TF_VERSION: "1.9.8"
   AWS_REGION: us-east-1
+  # base_ref = branch de destino do PR; ref_name = branch do push/dispatch.
+  DEPLOY_ENV: ${{ (github.base_ref || github.ref_name) == 'homolog' && 'homolog' || 'production' }}
 
 jobs:
-  # JOB 1: PLAN — roda em todo push na main, ou via dispatch manual
+  # JOB 1: PLAN — roda em todo push, PR e dispatch manual
   plan:
     name: Terraform Plan
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.action == 'plan' || inputs.action == 'apply' || inputs.action == 'destroy'))
     runs-on: ubuntu-latest
 
     steps:
@@ -55,27 +63,27 @@ jobs:
         continue-on-error: true
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: terraform init -input=false -backend-config="environments/$DEPLOY_ENV.s3.tfbackend"
 
       - name: Terraform Validate
         run: terraform validate
 
       - name: Terraform Plan
         id: plan
-        run: terraform plan -input=false -no-color -out=tfplan
+        run: terraform plan -input=false -no-color -var-file="environments/$DEPLOY_ENV.tfvars" -out=tfplan
         continue-on-error: true
 
       - name: Falhar se o Plan deu erro
         if: steps.plan.outcome == 'failure'
         run: exit 1
 
-  # JOB 2: APPLY — via push na main, ou dispatch manual (action=apply); só roda se o Plan tiver sucesso
+  # JOB 2: APPLY — via push (merge na main/homolog), ou dispatch manual (action=apply); só roda se o Plan tiver sucesso
   apply:
     name: Terraform Apply
     needs: plan
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ github.ref_name == 'homolog' && 'homolog' || 'production' }}
 
     steps:
       - name: Checkout do Código
@@ -95,10 +103,10 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: terraform init -input=false -backend-config="environments/$DEPLOY_ENV.s3.tfbackend"
 
       - name: Terraform Apply
-        run: terraform apply -input=false -auto-approve
+        run: terraform apply -input=false -auto-approve -var-file="environments/$DEPLOY_ENV.tfvars"
 
       - name: Mostrar Outputs (cluster, ECR, etc.)
         run: terraform output
@@ -109,7 +117,7 @@ jobs:
     needs: plan
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ github.ref_name == 'homolog' && 'homolog' || 'production' }}
 
     steps:
       - name: Checkout do Código
@@ -129,11 +137,11 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: terraform init -input=false -backend-config="environments/$DEPLOY_ENV.s3.tfbackend"
 
       - name: Terraform Destroy
         # Preserva o bucket S3 do state remoto (protegido por prevent_destroy
         # em backend/main.tf); destroi só o restante da infra.
         run: |
           TARGETS=$(terraform state list | grep -v '^module\.state_bucket' | sed 's/^/-target=/' | tr '\n' ' ')
-          terraform destroy -input=false -auto-approve $TARGETS
+          terraform destroy -input=false -auto-approve -var-file="environments/$DEPLOY_ENV.tfvars" $TARGETS

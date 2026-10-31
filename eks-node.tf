@@ -1,6 +1,6 @@
 resource "aws_eks_node_group" "node_group" {
   cluster_name    = aws_eks_cluster.cluster.name
-  node_group_name = "nodeg-${var.project_name}"
+  node_group_name = "nodeg-${local.name_prefix}"
   node_role_arn   = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
   subnet_ids      = aws_subnet.subnet_public[*].id
   instance_types  = var.instance_types
@@ -13,9 +13,9 @@ resource "aws_eks_node_group" "node_group" {
   }
 
   scaling_config {
-    desired_size = 2
-    max_size     = 3
-    min_size     = 2
+    desired_size = var.node_desired_size
+    max_size     = var.node_max_size
+    min_size     = var.node_min_size
   }
 
   update_config {

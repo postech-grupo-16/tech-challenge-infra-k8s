@@ -2,7 +2,7 @@
 # host consegue). O ebs-csi-driver depende do IMDS pra pegar as credenciais
 # do node (LabRole), ja que este projeto nao usa IRSA/OIDC.
 resource "aws_launch_template" "node" {
-  name_prefix = "lt-${var.project_name}-"
+  name_prefix = "lt-${local.name_prefix}-"
 
   metadata_options {
     http_endpoint               = "enabled"
