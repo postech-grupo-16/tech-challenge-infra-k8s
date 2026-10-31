@@ -5,3 +5,4 @@
 crash.log
 *.tfvars
 !*.tfvars.example
+!environments/*.tfvars

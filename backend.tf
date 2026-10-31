@@ -19,10 +19,14 @@
 # Depois disso, `terraform init`/`apply` normais funcionam direto - sem a
 # dança de comentar/descomentar backend que versoes anteriores deste
 # arquivo exigiam.
+#
+# A key do state depende do ambiente e vem de environments/<env>.s3.tfbackend:
+#
+#   terraform init -backend-config=environments/production.s3.tfbackend
+#   terraform init -backend-config=environments/homolog.s3.tfbackend
 terraform {
   backend "s3" {
-    bucket = "tech-challenge-infra-k8s-gabrielfsg"
-    key    = "terraform/terraform.tfstate"
+    bucket = "tech-challenge-gp15"
     region = "us-east-1"
   }
 }

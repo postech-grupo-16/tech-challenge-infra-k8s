@@ -30,15 +30,15 @@ Faz parte do conjunto de 4 repositórios da Fase 3 do Tech Challenge (16SOAT):
 
 O bucket S3 do state **não é gerenciado pelo Terraform** — é criado uma vez via AWS CLI, fora do Terraform. Isso é proposital: o provider AWS sempre tenta ler a configuração de "object lock" do bucket como parte do ciclo de vida do recurso `aws_s3_bucket`, e o AWS Academy bloqueia essa chamada (`GetBucketObjectLockConfiguration`) via Service Control Policy, sem exceção possível — isso quebraria o `apply` mesmo quando a criação do bucket em si funciona. Ver detalhes em [`backend.tf`](backend.tf).
 
-Antes do primeiro `terraform init`, troque `tech-challenge-infra-k8s-gabrielfsg` no comando abaixo (e em `backend.tf`) por um nome de bucket S3 ainda não usado globalmente — nomes de bucket S3 são únicos em toda a AWS:
+Antes do primeiro `terraform init`, troque `tech-challenge-gp15` no comando abaixo (e em `backend.tf`) por um nome de bucket S3 ainda não usado globalmente — nomes de bucket S3 são únicos em toda a AWS:
 
 ```bash
-aws s3api create-bucket --bucket tech-challenge-infra-k8s-gabrielfsg --region us-east-1
-aws s3api put-bucket-versioning --bucket tech-challenge-infra-k8s-gabrielfsg \
+aws s3api create-bucket --bucket tech-challenge-gp15 --region us-east-1
+aws s3api put-bucket-versioning --bucket tech-challenge-gp15 \
   --versioning-configuration Status=Enabled
-aws s3api put-bucket-encryption --bucket tech-challenge-infra-k8s-gabrielfsg \
+aws s3api put-bucket-encryption --bucket tech-challenge-gp15 \
   --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-aws s3api put-public-access-block --bucket tech-challenge-infra-k8s-gabrielfsg \
+aws s3api put-public-access-block --bucket tech-challenge-gp15 \
   --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 ```
 
@@ -47,10 +47,12 @@ Depois disso, `terraform init`/`apply` normais funcionam direto.
 ## Uso normal
 
 ```bash
-terraform init
-terraform plan
-terraform apply
+terraform init -backend-config=environments/production.s3.tfbackend
+terraform plan -var-file=environments/production.tfvars
+terraform apply -var-file=environments/production.tfvars
 ```
+
+> **Ambientes:** troque `production` por `homolog` para operar a stack de homologação (nomes com sufixo `-homolog`, parâmetros SSM em `/tech-challenge-homolog/*`, state em outra key do mesmo bucket). Ao alternar entre ambientes na mesma pasta, rode `terraform init -reconfigure -backend-config=...`.
 
 Para apontar o `kubectl` local para o cluster recém-criado:
 
@@ -74,7 +76,7 @@ terraform destroy
 
 ## CI/CD
 
-[`.github/workflows/terraform.yml`](.github/workflows/terraform.yml): `plan` em todo push/dispatch, `apply` automático em push na `main`, `destroy` manual via `workflow_dispatch`. Requer os secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` configurados no repositório (credenciais do AWS Academy Learner Lab, que expiram — precisam ser atualizadas periodicamente).
+[`.github/workflows/terraform.yml`](.github/workflows/terraform.yml): `plan` em todo push/PR/dispatch, `apply` automático em push na `main` (produção) ou na `homolog` (homologação), `destroy` manual via `workflow_dispatch` (o ambiente é o da branch escolhida). Requer os secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` configurados no repositório (credenciais do AWS Academy Learner Lab, que expiram — precisam ser atualizadas periodicamente).
 
 A branch `main` é protegida — merges só via Pull Request.
 

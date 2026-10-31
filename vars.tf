@@ -29,3 +29,27 @@ variable "instance_types" {
   type        = list(string)
   default     = ["t3.medium"]
 }
+
+variable "environment" {
+  description = "Ambiente (production ou homolog) - define o sufixo dos nomes e o prefixo SSM"
+  type        = string
+  default     = "production"
+}
+
+variable "node_desired_size" {
+  description = "Quantidade desejada de nodes no node group"
+  type        = number
+  default     = 2
+}
+
+variable "node_min_size" {
+  description = "Quantidade minima de nodes no node group"
+  type        = number
+  default     = 2
+}
+
+variable "node_max_size" {
+  description = "Quantidade maxima de nodes no node group"
+  type        = number
+  default     = 3
+}
