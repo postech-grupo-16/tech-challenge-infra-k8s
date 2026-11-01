@@ -1,5 +1,5 @@
 resource "aws_ecr_repository" "app" {
-  name                 = "tech-challenge-backend"
+  name                 = "${local.name_prefix}-backend"
   image_tag_mutability = "MUTABLE"
 
   force_delete = true
