@@ -30,15 +30,15 @@ Faz parte do conjunto de 4 repositórios da Fase 3 do Tech Challenge (16SOAT):
 
 O bucket S3 do state **não é gerenciado pelo Terraform** — é criado uma vez via AWS CLI, fora do Terraform. Isso é proposital: o provider AWS sempre tenta ler a configuração de "object lock" do bucket como parte do ciclo de vida do recurso `aws_s3_bucket`, e o AWS Academy bloqueia essa chamada (`GetBucketObjectLockConfiguration`) via Service Control Policy, sem exceção possível — isso quebraria o `apply` mesmo quando a criação do bucket em si funciona. Ver detalhes em [`backend.tf`](backend.tf).
 
-Antes do primeiro `terraform init`, troque `tech-challenge-gp15` no comando abaixo (e em `backend.tf`) por um nome de bucket S3 ainda não usado globalmente — nomes de bucket S3 são únicos em toda a AWS:
+Antes do primeiro `terraform init`, troque `tech-challenge-gp15-00` no comando abaixo (e em `backend.tf`) por um nome de bucket S3 ainda não usado globalmente — nomes de bucket S3 são únicos em toda a AWS:
 
 ```bash
-aws s3api create-bucket --bucket tech-challenge-gp15 --region us-east-1
-aws s3api put-bucket-versioning --bucket tech-challenge-gp15 \
+aws s3api create-bucket --bucket tech-challenge-gp15-00 --region us-east-1
+aws s3api put-bucket-versioning --bucket tech-challenge-gp15-00 \
   --versioning-configuration Status=Enabled
-aws s3api put-bucket-encryption --bucket tech-challenge-gp15 \
+aws s3api put-bucket-encryption --bucket tech-challenge-gp15-00 \
   --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-aws s3api put-public-access-block --bucket tech-challenge-gp15 \
+aws s3api put-public-access-block --bucket tech-challenge-gp15-00 \
   --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 ```
 
