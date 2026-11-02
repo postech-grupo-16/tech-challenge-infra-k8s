@@ -26,7 +26,7 @@
 #   terraform init -backend-config=environments/homolog.s3.tfbackend
 terraform {
   backend "s3" {
-    bucket = "tech-challenge-gp15"
+    bucket = "tech-challenge-gp15-00"
     region = "us-east-1"
   }
 }
